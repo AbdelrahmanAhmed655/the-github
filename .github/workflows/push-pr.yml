@@ -1,4 +1,7 @@
-name: first workflow
+# Lesson: trigger filters. This one only runs when code under src/ or test/
+# changes, which keeps it quiet when you only edit the README.
+
+name: Push and PR triggers
 
 on:
   push:
@@ -7,15 +10,35 @@ on:
       - "release/**"
     paths:
       - "src/**"
+      - "test/**"
+      - "package.json"
   pull_request:
     branches:
       - main
       - "release/**"
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-     - name: checkout the repo
-       uses: actions/checkout@v6.1.0
-     - name: Run test
-       run: npm test
+      - name: Check out the repository
+        uses: actions/checkout@v6.1.0
+
+      # Without this step the runner's default Node version is whatever the
+      # image ships — pin it so a green build means something.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test
+
+      - name: Show what triggered this run
+        run: |
+          echo "event:  ${{ github.event_name }}"
+          echo "ref:    ${{ github.ref }}"
+          echo "actor:  ${{ github.actor }}"

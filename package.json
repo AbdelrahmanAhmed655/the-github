@@ -1,0 +1,24 @@
+{
+  "name": "github-action-study-app",
+  "version": "1.0.0",
+  "description": "A small Node.js web app used to practise GitHub Actions workflows",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/",
+    "test:coverage": "node --test --experimental-test-coverage test/",
+    "lint": "node scripts/lint.js"
+  },
+  "keywords": [
+    "github-actions",
+    "ci",
+    "learning"
+  ],
+  "license": "MIT",
+  "private": true
+}

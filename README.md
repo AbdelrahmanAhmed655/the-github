@@ -277,3 +277,80 @@ jobs:
   belong in the same job as sequential steps, not separate jobs.
 - **Hardcoding secrets.** Use `${{ secrets.NAME }}`; never commit tokens to the YAML.
 - **Floating action versions.** Pin them so a dependency update can't break your pipeline.
+
+---
+
+## The practice app in this repo
+
+A small Node.js web app to point workflows at. **Zero dependencies** — it uses only
+Node's built-in `node:http` server and `node:test` runner, so CI never fails because
+of a flaky `npm install`.
+
+### Run it
+
+```bash
+npm start           # http://localhost:3000
+npm run dev         # same, restarts on file changes
+npm test            # the test suite
+npm run lint        # the tiny built-in linter
+```
+
+Requires **Node 20 or newer**.
+
+### What it exposes
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/` | The web UI |
+| `GET` | `/health` | `{ status, uptimeSeconds, version, commit, node }` |
+| `GET` | `/api/calc?op=add&a=1&b=2` | `add`, `subtract`, `multiply`, `divide` |
+| `GET` | `/api/todos` | List todos |
+| `POST` | `/api/todos` | Create one from `{ "title": "..." }` |
+| `POST` | `/api/todos/:id/toggle` | Flip done/not done |
+| `DELETE` | `/api/todos/:id` | Delete one |
+
+Todos live in memory, so every restart — and every CI job — starts empty.
+
+### Layout
+
+```
+src/server.js      binds the port, handles SIGTERM
+src/app.js         all the routing; exported so tests can drive it without a port
+src/lib/calc.js    pure functions — the easy unit-test target
+src/lib/todos.js   the in-memory store
+test/              node:test suites (unit + HTTP integration)
+scripts/lint.js    dependency-free stand-in for ESLint
+public/index.html  the UI
+```
+
+### The workflows, and what each one teaches
+
+| File | Trigger | The lesson |
+|---|---|---|
+| `the-first.yml` | someone stars the repo | an unusual event + `github.actor` |
+| `main.yml` | push to `main` | the smallest useful workflow |
+| `push-pr.yml` | push/PR, filtered by `paths` | trigger filters, pinning Node |
+| `ci.yml` | push, PR, manual | the real pipeline — see below |
+| `manual-deploy.yml` | `workflow_dispatch` | typed inputs, environments, secrets |
+
+`ci.yml` is the one to study. Its five jobs each demonstrate one idea:
+
+- **lint** — a single runner, the baseline shape.
+- **test** — a `matrix` across Node 20/22 plus macOS, with `fail-fast: false` so you
+  can tell a version-specific break from a real one.
+- **build** — writes a step output via `$GITHUB_OUTPUT` and uploads a tarball artifact.
+- **smoke** — downloads that artifact (nothing survives between jobs), starts the real
+  server, polls `/health` until it answers, then curls the API.
+- **report** — runs with `if: always()` and reads `needs.*.result` to summarise, then
+  fails the run if anything upstream failed.
+
+It also uses `concurrency` so a second push cancels the first run instead of queueing it.
+
+### Things to try next
+
+- Break a test on purpose and watch which matrix legs go red.
+- Add `package-lock.json` (`npm install`), then switch `cache: npm` on in
+  `setup-node` and `npm install` → `npm ci`.
+- Add a `services:` block with Postgres and make the todos persist.
+- Move the repeated checkout/setup-node pair into a composite action under
+  `.github/actions/`.
