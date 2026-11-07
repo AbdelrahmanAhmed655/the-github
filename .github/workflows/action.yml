@@ -1,0 +1,18 @@
+name: The workflow action
+on:
+    workflow_dispatch:
+jobs:
+    hybrid_job:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Run a command in Ubuntu VM
+              run: echo "this runs on the Ubuntu VM"
+
+            - name: Run inside an Alpine container
+              uses: docker://alpine:3.14
+              with:
+                entrypoint: /bin/sh
+                args: -c "echo 'This runs inside an Alpine container'"
+
+            - name: Run another command in ubuntu VM
+              run: echo "Back to VM"
