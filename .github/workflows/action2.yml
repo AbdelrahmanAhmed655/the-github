@@ -1,16 +1,34 @@
+name: Greeting
+
 on:
-    workflow_dispatch: 
+  push:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Who to greet
+        default: World
+
 jobs:
-    job_1:
-        strategy:
-            fail-fast: false
-            max-parallel: 3
-            matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
-                node_version: [  14.x, 15.x, 16.x]
-        runs-on: ${{matrix.os}}
-        steps:
-         - name: Set up Node.js
-           uses: actions/setup-node@v6
-           with:
-            node-version: ${{matrix.node_version}}
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      # Local actions must be checked out before they can be used
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm   # remove this line if the repo has no package-lock.json
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Say hello
+        id: hello
+        uses: ./.github/actions/greeting
+        with:
+          who-to-greet: ${{ github.event.inputs.name || github.actor }}
+
+      - name: Show output
+        run: echo "Greeted at ${{ steps.hello.outputs.time }}"
