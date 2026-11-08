@@ -1,24 +1,24 @@
 # ---------------------------------------------------------------------------
 # EXPRESSIONS
 #
-# An expression is a small piece of logic that GitHub evaluates while it builds
-# the workflow run. You write it inside ${{ }} and GitHub replaces the whole
-# thing with the resulting value *before* the runner executes the step.
+# An expression is a piece of logic that GitHub evaluates while it builds the
+# run. You write it inside ${{ }} and GitHub replaces the whole thing with the
+# resulting value *before* the runner executes the step.
 #
 #   ${{ <expression> }}
 #
-# An expression is made of four things:
+# An expression is built from four things:
 #
 #   1. literals    'a string'  123  true  false  null
 #   2. operators   ( )  [ ]  .  !  <  <=  >  >=  ==  !=  &&  ||
-#   3. contexts    objects of data about the run: github, env, vars, secrets,
-#                  job, jobs, steps, runner, inputs, matrix, needs, strategy
+#   3. contexts    data about the run: github, env, vars, secrets, job, jobs,
+#                  steps, runner, inputs, matrix, needs, strategy
 #   4. functions   contains, startsWith, endsWith, format, join, toJSON,
 #                  fromJSON, hashFiles, and the status checks success(),
 #                  failure(), cancelled(), always()
 #
 # Two rules worth remembering:
-#   - Strings in an expression use SINGLE quotes. 'main', never "main".
+#   - Strings inside an expression use SINGLE quotes: 'main', never "main".
 #   - In `if:` the ${{ }} is optional, because the value is already treated as
 #     an expression. Everywhere else (run, with, env, name) it is required.
 # ---------------------------------------------------------------------------
@@ -26,210 +26,215 @@
 name: Expressions
 
 on:
-  push:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Where to deploy
-        type: choice
-        options: [staging, production]
-        default: staging
-      run_tests:
-        description: Run the test step
-        type: boolean
-        default: true
+    push:
+    workflow_dispatch:
+        inputs:
+            environment:
+                description: Where to deploy
+                type: choice
+                options: [staging, production]
+                default: staging
+            run_tests:
+                description: Run the test step
+                type: boolean
+                default: true
 
 # `env` becomes a context, so these are readable as ${{ env.GREETING }}
 env:
-  GREETING: hello
-  RETRIES: 3
+    GREETING: hello
+    RETRIES: 3
 
 jobs:
-  # -------------------------------------------------------------------------
-  # 1. CONTEXTS - reading data about the run
-  # -------------------------------------------------------------------------
-  contexts:
-    runs-on: ubuntu-latest
-    steps:
-      # The `github` context describes the event that triggered the run.
-      - name: The github context
-        run: |
-          echo "repo       ${{ github.repository }}"
-          echo "actor      ${{ github.actor }}"
-          echo "event      ${{ github.event_name }}"
-          echo "ref        ${{ github.ref }}"
-          echo "short sha  ${{ github.sha }}"
+    # -----------------------------------------------------------------------
+    # 1. CONTEXTS - reading data about the run
+    # -----------------------------------------------------------------------
+    contexts:
+        runs-on: ubuntu-latest
+        steps:
+            # The `github` context describes the event that triggered the run.
+            - name: The github context
+              run: |
+                  echo "repo    ${{ github.repository }}"
+                  echo "actor   ${{ github.actor }}"
+                  echo "event   ${{ github.event_name }}"
+                  echo "ref     ${{ github.ref }}"
+                  echo "sha     ${{ github.sha }}"
 
-      # `runner` describes the machine, `env` your own variables.
-      - name: The runner and env contexts
-        run: |
-          echo "os         ${{ runner.os }}"
-          echo "arch       ${{ runner.arch }}"
-          echo "greeting   ${{ env.GREETING }}"
+            # `runner` describes the machine, `env` your own variables.
+            - name: The runner and env contexts
+              run: |
+                  echo "os        ${{ runner.os }}"
+                  echo "arch      ${{ runner.arch }}"
+                  echo "greeting  ${{ env.GREETING }}"
 
-      # `inputs` only has values on workflow_dispatch. On a push it is empty,
-      # so `||` supplies a fallback - see the operators job below.
-      - name: The inputs context
-        run: echo "environment = ${{ inputs.environment || 'none, this was a push' }}"
+            # `inputs` only has values on workflow_dispatch. On a push it is
+            # empty, so `||` supplies a fallback - see the operators job.
+            - name: The inputs context
+              run: echo "environment = ${{ inputs.environment || 'none, this was a push' }}"
 
-      # toJSON() dumps a whole context as JSON. This is the single most useful
-      # debugging trick in Actions: when you do not know what a context holds,
-      # print it.
-      - name: Dump a context for debugging
-        run: echo '${{ toJSON(github.event) }}'
+            # toJSON() dumps a whole context as JSON. This is the most useful
+            # debugging trick in Actions: when you do not know what a context
+            # holds, print it.
+            - name: Dump a context for debugging
+              run: echo '${{ toJSON(github.event) }}'
 
-      # A step with an `id` exposes its outputs to later steps via `steps`.
-      - name: Produce an output
-        id: meta
-        run: echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+            # A step with an `id` exposes its outputs to later steps via the
+            # `steps` context.
+            - name: Produce an output
+              id: meta
+              run: echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
 
-      - name: Read the previous step's output
-        run: echo "branch was ${{ steps.meta.outputs.branch }}"
+            - name: Read the previous step's output
+              run: echo "branch was ${{ steps.meta.outputs.branch }}"
 
-  # -------------------------------------------------------------------------
-  # 2. OPERATORS - comparing and combining values
-  # -------------------------------------------------------------------------
-  operators:
-    runs-on: ubuntu-latest
-    steps:
-      # Comparison produces true/false.
-      - name: Comparison
-        run: |
-          echo "is main?      ${{ github.ref == 'refs/heads/main' }}"
-          echo "not a push?   ${{ github.event_name != 'push' }}"
-          echo "retries > 1?  ${{ env.RETRIES > 1 }}"
+    # -----------------------------------------------------------------------
+    # 2. OPERATORS - comparing and combining values
+    # -----------------------------------------------------------------------
+    operators:
+        runs-on: ubuntu-latest
+        steps:
+            # Comparison produces true/false.
+            - name: Comparison
+              run: |
+                  echo "is main?     ${{ github.ref == 'refs/heads/main' }}"
+                  echo "not a push?  ${{ github.event_name != 'push' }}"
+                  echo "retries > 1? ${{ env.RETRIES > 1 }}"
 
-      # && and || do NOT return booleans. They return one of their operands,
-      # which is how you write a ternary (`cond ? a : b`) in Actions:
-      #
-      #   ${{ condition && 'value-if-true' || 'value-if-false' }}
-      #
-      # Careful: if the "true" value is itself falsy ('' , 0, false) the
-      # expression falls through to the right-hand side.
-      - name: Ternary
-        run: echo "deploying to ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
+            # && and || do NOT return booleans. They return one of their
+            # operands, which is how you write a ternary (cond ? a : b):
+            #
+            #   ${{ condition && 'value-if-true' || 'value-if-false' }}
+            #
+            # Careful: if the "true" value is itself falsy ('', 0, false) the
+            # expression falls through to the right-hand side.
+            - name: Ternary
+              run: echo "deploying to ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
 
-      # || is also the idiomatic default-value operator.
-      - name: Default value
-        run: echo "name = ${{ inputs.environment || 'staging' }}"
+            # || is also the idiomatic default-value operator.
+            - name: Default value
+              run: echo "name = ${{ inputs.environment || 'staging' }}"
 
-  # -------------------------------------------------------------------------
-  # 3. FUNCTIONS
-  # -------------------------------------------------------------------------
-  functions:
-    runs-on: ubuntu-latest
-    steps:
-      # String tests. All of these are case-insensitive.
-      - name: String functions
-        run: |
-          echo "contains     ${{ contains(github.ref, 'main') }}"
-          echo "startsWith   ${{ startsWith(github.ref, 'refs/heads/') }}"
-          echo "endsWith     ${{ endsWith(github.repository, '-action') }}"
+    # -----------------------------------------------------------------------
+    # 3. FUNCTIONS
+    # -----------------------------------------------------------------------
+    functions:
+        runs-on: ubuntu-latest
+        steps:
+            # String tests. All of these are case-insensitive.
+            - name: String functions
+              run: |
+                  echo "contains    ${{ contains(github.ref, 'main') }}"
+                  echo "startsWith  ${{ startsWith(github.ref, 'refs/heads/') }}"
+                  echo "endsWith    ${{ endsWith(github.repository, '-action') }}"
 
-      # contains() also searches arrays, which is how you test a label:
-      #   contains(github.event.pull_request.labels.*.name, 'urgent')
-      #
-      # format() substitutes {0}, {1}, ... Use it instead of gluing strings
-      # together, and double a brace to emit a literal one: {{ -> {
-      - name: format
-        run: echo "${{ format('{0} ran on {1} at sha {2}', github.actor, runner.os, github.sha) }}"
+            # contains() also searches arrays, which is how you test a label:
+            #   contains(github.event.pull_request.labels.*.name, 'urgent')
+            #
+            # format() substitutes {0}, {1}, ... Use it instead of gluing
+            # strings together; double a brace to emit a literal one: {{ -> {
+            - name: format
+              run: echo "${{ format('{0} ran on {1} at sha {2}', github.actor, runner.os, github.sha) }}"
 
-      # join() flattens an array into a string with a separator.
-      - name: join
-        run: echo "${{ join(github.event.commits.*.id, ', ') }}"
+            # join() flattens an array into a string with a separator.
+            - name: join
+              run: echo "${{ join(github.event.commits.*.id, ', ') }}"
 
-      # fromJSON() parses a string into real data, so you can index it. It is
-      # most often used to feed a matrix from a previous job's output.
-      - name: fromJSON
-        run: echo "second item = ${{ fromJSON('["a","b","c"]')[1] }}"
+            # fromJSON() parses a string into real data, so you can index it.
+            # It is most often used to feed a matrix from a job's output.
+            - name: fromJSON
+              run: echo "second item = ${{ fromJSON('["a","b","c"]')[1] }}"
 
-      # hashFiles() hashes files in the workspace. This is the standard way to
-      # build a cache key, since the hash changes only when the lockfile does.
-      - uses: actions/checkout@v5
-      - name: hashFiles
-        run: echo "key = ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}"
+            # hashFiles() hashes files in the workspace. This is the standard
+            # way to build a cache key: the hash changes only when the
+            # lockfile does.
+            - uses: actions/checkout@v5
+            - name: hashFiles
+              run: echo "key = ${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}"
 
-  # -------------------------------------------------------------------------
-  # 4. `if:` - expressions that decide whether something runs
-  # -------------------------------------------------------------------------
-  conditionals:
-    runs-on: ubuntu-latest
-    steps:
-      # No ${{ }} needed here. The value of `if` is already an expression.
-      - name: Only on main
-        if: github.ref == 'refs/heads/main'
-        run: echo "on main"
+    # -----------------------------------------------------------------------
+    # 4. `if:` - expressions that decide whether something runs
+    # -----------------------------------------------------------------------
+    conditionals:
+        runs-on: ubuntu-latest
+        steps:
+            # No ${{ }} needed here, but it is allowed - both forms work.
+            - name: print a massage
+              run: echo "The job is running"
+              if: ${{ github.event_name == 'push' }}
 
-      - name: Only when the boolean input was set
-        if: inputs.run_tests
-        run: echo "running tests"
+            - name: Only on main
+              if: github.ref == 'refs/heads/main'
+              run: echo "on main"
 
-      - name: Combined condition
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
-        run: echo "a branch push, not a tag"
+            - name: Only when the boolean input was set
+              if: inputs.run_tests
+              run: echo "running tests"
 
-      - name: This one fails on purpose
-        id: flaky
-        continue-on-error: true
-        run: exit 1
+            - name: Combined condition
+              if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+              run: echo "a branch push, not a tag"
 
-      # STATUS CHECK FUNCTIONS.
-      #
-      # By default every step carries an implicit `if: success()`, which is why
-      # a failed step normally stops the job. Naming one of these explicitly
-      # overrides that:
-      #
-      #   success()    previous steps all succeeded  (the default)
-      #   failure()    some previous step failed
-      #   cancelled()  the run was cancelled
-      #   always()     run no matter what - even on cancel
-      #
-      # Prefer `failure()` over `always()` for cleanup you want skipped on
-      # cancel, because `always()` can keep a job alive after you cancel it.
-      - name: Runs only if something failed
-        if: failure()
-        run: echo "a step failed"
+            - name: This one fails on purpose
+              continue-on-error: true
+              run: exit 1
 
-      - name: Runs either way
+            # STATUS CHECK FUNCTIONS.
+            #
+            # Every step carries an implicit `if: success()`, which is why a
+            # failed step normally stops the job. Naming one of these
+            # explicitly overrides that:
+            #
+            #   success()    previous steps all succeeded  (the default)
+            #   failure()    some previous step failed
+            #   cancelled()  the run was cancelled
+            #   always()     run no matter what - even on cancel
+            #
+            # Prefer failure() over always() for cleanup you want skipped on
+            # cancel, because always() can keep a job alive after you cancel.
+            - name: Runs only if something failed
+              if: failure()
+              run: echo "a step failed"
+
+            - name: Runs either way
+              if: always()
+              run: echo "this always runs"
+
+    # -----------------------------------------------------------------------
+    # 5. `needs` - expressions across jobs
+    # -----------------------------------------------------------------------
+    produce:
+        runs-on: ubuntu-latest
+        # A job exposes outputs by mapping them to a step's output.
+        outputs:
+            version: ${{ steps.pick.outputs.version }}
+            targets: ${{ steps.pick.outputs.targets }}
+        steps:
+            - name: Pick a version and a matrix
+              id: pick
+              run: |
+                  echo "version=1.4.2" >> "$GITHUB_OUTPUT"
+                  echo 'targets=["ubuntu-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
+
+    consume:
+        needs: produce
+        # fromJSON turns the upstream string into a real list, so the matrix
+        # is computed at runtime instead of being hardcoded here.
+        strategy:
+            matrix:
+                os: ${{ fromJSON(needs.produce.outputs.targets) }}
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Read an upstream job's output
+              run: echo "building ${{ needs.produce.outputs.version }} on ${{ matrix.os }}"
+
+    summary:
+        needs: [produce, consume]
+        # `needs.<job>.result` is 'success', 'failure', 'cancelled' or
+        # 'skipped'. Without always() this job would be skipped when an
+        # upstream job failed, so a reporting job almost always needs it.
         if: always()
-        run: echo "this always runs"
-
-  # -------------------------------------------------------------------------
-  # 5. `needs` - expressions across jobs
-  # -------------------------------------------------------------------------
-  produce:
-    runs-on: ubuntu-latest
-    # A job exposes outputs by mapping them to a step's output.
-    outputs:
-      version: ${{ steps.pick.outputs.version }}
-      targets: ${{ steps.pick.outputs.targets }}
-    steps:
-      - name: Pick a version and a matrix
-        id: pick
-        run: |
-          echo "version=1.4.2" >> "$GITHUB_OUTPUT"
-          echo 'targets=["ubuntu-latest","macos-latest"]' >> "$GITHUB_OUTPUT"
-
-  consume:
-    needs: produce
-    # fromJSON turns the upstream string into a real list, so the matrix is
-    # computed at runtime rather than hardcoded here.
-    strategy:
-      matrix:
-        os: ${{ fromJSON(needs.produce.outputs.targets) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Read an upstream job's output
-        run: echo "building ${{ needs.produce.outputs.version }} on ${{ matrix.os }}"
-
-  summary:
-    needs: [produce, consume]
-    # `needs.<job>.result` is 'success', 'failure', 'cancelled' or 'skipped'.
-    # Without always() this job would be skipped when an upstream job failed,
-    # so a reporting job almost always needs it.
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "produce -> ${{ needs.produce.result }}"
-          echo "consume -> ${{ needs.consume.result }}"
+        runs-on: ubuntu-latest
+        steps:
+            - run: |
+                  echo "produce -> ${{ needs.produce.result }}"
+                  echo "consume -> ${{ needs.consume.result }}"
