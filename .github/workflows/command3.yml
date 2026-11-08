@@ -1,0 +1,13 @@
+on:
+    workflow_call:
+jobs:
+    error:
+        runs-on: ubuntu-latest
+        steps:
+        - name: Check if the file exists
+          run: |
+           if [ -f "config.yml" ]; then
+             echo "::debug::config.yml exists"
+           else
+             echo "::error::config.yml is missing"
+           fi
